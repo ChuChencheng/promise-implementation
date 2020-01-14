@@ -1,0 +1,17 @@
+{
+  "name": "promise-implementation",
+  "version": "1.0.0",
+  "description": "An implementation of promises/A+",
+  "main": "promise.ts",
+  "author": "ChuChencheng",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "compile": "tsc adapter.ts --target ESNext --module UMD",
+    "test": "npm run compile && promises-aplus-tests adapter.js"
+  },
+  "devDependencies": {
+    "promises-aplus-tests": "*",
+    "typescript": "^3.7.4"
+  }
+}
