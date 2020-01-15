@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: 
+      - master
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: action/setup-node
+      with:
+        node-version: '11.x'
+    - name: Install Dependencies
+      run: yarn
+    - name: Test implementation
+      run: yarn test
