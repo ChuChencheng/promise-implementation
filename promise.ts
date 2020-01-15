@@ -23,10 +23,10 @@ enum PROMISE_STATUS {
 }
 
 // 2.3
-const promiseResolutionProcedure = <T> (promise: _Promise<T> | undefined, x, resolve, reject) => {
+const promiseResolutionProcedure = <T> (promise: _Promise<T>, x, resolve, reject) => {
   // 2.3.1 如果 `promise` 与 `x` 是同一个对象，则以一个 `TypeError` 拒绝这个 `promise`
-  if (promise && promise === x) {
-    return reject(new TypeError())
+  if (promise === x) {
+    return reject(new TypeError('Chaining cycle detected for promise #<Promise>'))
   }
   // 2.3.2 如果 `x` 是一个 Promise ，则 `promise` 需等待到 `x` 状态改变后，以 `x` 对应的状态与 `value` 或 `reason` 去 resolve 或 reject
   if (x instanceof _Promise) {
@@ -110,7 +110,7 @@ export default class _Promise<T = unknown> {
           })
         }
         // 如果 value 是一个 thenable ，获取最终 resolve 的 value 赋值
-        promiseResolutionProcedure(undefined, value, _resolve, reject)
+        promiseResolutionProcedure(this, value, _resolve, reject)
       }
     }
     const reject = (reason?: any) => {
@@ -124,7 +124,12 @@ export default class _Promise<T = unknown> {
         })
       }
     }
-    executor(resolve, reject)
+    try {
+      executor(resolve, reject)
+    } catch (e) {
+      // 执行 executor 遇到抛出异常的话，直接 reject ，虽然浏览器可能会把没有 catch 的异常也抛出，但没有抛出也是符合规范的
+      reject(e)
+    }
   }
 
   // 2.2.1 `onFulfilled` 与 `onRejected` 都是可选参数，如果 `onFulfilled` 和 `onRejected` 不是函数，则忽略
@@ -138,7 +143,7 @@ export default class _Promise<T = unknown> {
             // 2.2.5 `onFulfilled` 应作为一个函数调用，没有 `this` 值
             // 2.2.7.1 如果 `onFulfilled` 或 `onRejected` 返回一个值 `x` ，则执行 `the Promise Resolution Procedure` [[Resolve]](promise2, x)
             const x = onFulfilled(this._value as T)
-            promiseResolutionProcedure(promise2, x, resolve, reject)
+            resolve(x)
           } catch (e) {
             // 2.2.7.2 如果 `onFulfilled` 或 `onRejected` 抛出异常，则 promise2 以此异常拒绝（reject）
             reject(e)
@@ -156,7 +161,7 @@ export default class _Promise<T = unknown> {
             // 2.2.5 `onRejected` 应作为一个函数调用，没有 `this` 值
             // 2.2.7.1 如果 `onFulfilled` 或 `onRejected` 返回一个值 `x` ，则执行 `the Promise Resolution Procedure` [[Resolve]](promise2, x)
             const x = onRejected(this._reason)
-            promiseResolutionProcedure(promise2, x, resolve, reject)
+            resolve(x)
           } catch (e) {
             // 2.2.7.2 如果 `onFulfilled` 或 `onRejected` 抛出异常，则 promise2 以此异常拒绝（reject）
             reject(e)
@@ -189,14 +194,12 @@ export default class _Promise<T = unknown> {
 
   // es2018
   finally (onFinally?: (() => void) | undefined | null): _Promise<T> {
-    return new _Promise((resolve, reject) => {
-      return this.then((value) => {
-        onFinally()
-        resolve(value)
-      }, (reason) => {
-        onFinally()
-        reject(reason)
-      })
+    return this.then((value) => {
+      onFinally()
+      return value
+    }, (reason) => {
+      onFinally()
+      throw reason
     })
   }
 
@@ -211,13 +214,15 @@ export default class _Promise<T = unknown> {
     const length = array.length
     if (!length) return _Promise.resolve([])
     const result: T[] = []
+    let resultLength = 0
     return new _Promise((resolve, reject) => {
       array.forEach((p, i) => {
-        const tempPromise = new _Promise<T>((resolve, reject) => {
-          promiseResolutionProcedure(tempPromise, p, resolve, reject)
+        new _Promise<T>((resolve) => {
+          resolve(p)
         }).then((value) => {
           result[i] = value
-          if (result.length === length) {
+          resultLength++
+          if (resultLength === length) {
             resolve(result)
           }
         }, (reason) => {
@@ -229,16 +234,16 @@ export default class _Promise<T = unknown> {
 
   // es2015
   static race <T> (values: Iterable<T>): _Promise<T extends PromiseLike<infer U> ? U : T> {
-    let array: Array<T | PromiseLike<T>> = []
+    let array: Array<(T extends PromiseLike<infer U> ? U : T) | PromiseLike<T extends PromiseLike<infer U> ? U : T>> = []
     try {
-      array = Array.from(values)
+      array = Array.from(values) as Array<(T extends PromiseLike<infer U> ? U : T) | PromiseLike<T extends PromiseLike<infer U> ? U : T>>
     } catch (e) {
       return _Promise.reject(e)
     }
     return new _Promise((resolve, reject) => {
       array.forEach((p) => {
-        const tempPromise = new _Promise<T extends PromiseLike<infer U> ? U : T>((resolve, reject) => {
-          promiseResolutionProcedure(tempPromise, p, resolve, reject)
+        new _Promise<T extends PromiseLike<infer U> ? U : T>((resolve) => {
+          resolve(p)
         }).then((value) => {
           resolve(value)
         }, (reason) => {
@@ -265,24 +270,26 @@ export default class _Promise<T = unknown> {
 
   // es2020
   static allSettled <T> (values: Iterable<T>): _Promise<PromiseSettledResult<T extends PromiseLike<infer U> ? U : T>[]> {
-    let array: Array<T | PromiseLike<T>> = []
+    let array: Array<(T extends PromiseLike<infer U> ? U : T) | PromiseLike<T extends PromiseLike<infer U> ? U : T>> = []
     try {
-      array = Array.from(values)
+      array = Array.from(values) as Array<(T extends PromiseLike<infer U> ? U : T) | PromiseLike<T extends PromiseLike<infer U> ? U : T>>
     } catch (e) {
       return _Promise.reject(e)
     }
     const length = array.length
     if (!length) return _Promise.resolve([])
     const result: Array<PromiseSettledResult<T extends PromiseLike<infer U> ? U : T>> = []
+    let resultLength = 0
     return new _Promise((resolve) => {
       const checkResolve = () => {
-        if (result.length === length) {
+        resultLength++
+        if (resultLength === length) {
           resolve(result)
         }
       }
       array.forEach((p, i) => {
-        const tempPromise = new _Promise<T extends PromiseLike<infer U> ? U : T>((resolve, reject) => {
-          promiseResolutionProcedure(tempPromise, p, resolve, reject)
+        new _Promise<T extends PromiseLike<infer U> ? U : T>((resolve) => {
+          resolve(p)
         }).then((value) => {
           result[i] = {
             status: PROMISE_STATUS.FULFILLED,
