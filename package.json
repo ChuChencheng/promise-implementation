@@ -8,9 +8,13 @@
   "private": false,
   "scripts": {
     "compile": "tsc adapter.ts --target ESNext --module UMD",
-    "test": "npm run compile && promises-aplus-tests adapter.js"
+    "test-methods": "npm run compile && mocha",
+    "test-aplus": "npm run compile && promises-aplus-tests adapter.js",
+    "test": "npm run compile && mocha && promises-aplus-tests adapter.js"
   },
   "devDependencies": {
+    "chai": "^4.2.0",
+    "mocha": "^7.0.0",
     "promises-aplus-tests": "*",
     "typescript": "^3.7.4"
   }
