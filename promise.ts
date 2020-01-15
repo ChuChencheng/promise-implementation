@@ -251,10 +251,9 @@ export default class _Promise<T = unknown> {
   // es2015
   static resolve <T> (value?: T | PromiseLike<T>): _Promise<T> {
     if (value instanceof _Promise) return value
-    const promise = new _Promise<T>((resolve, reject) => {
-      promiseResolutionProcedure(undefined, value, resolve, reject)
+    return new _Promise<T>((resolve) => {
+      resolve(value)
     })
-    return promise
   }
 
   // es2015
