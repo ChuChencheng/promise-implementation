@@ -217,9 +217,7 @@ export default class _Promise<T = unknown> {
     let resultLength = 0
     return new _Promise((resolve, reject) => {
       array.forEach((p, i) => {
-        new _Promise<T>((resolve) => {
-          resolve(p)
-        }).then((value) => {
+        _Promise.resolve(p).then((value) => {
           result[i] = value
           resultLength++
           if (resultLength === length) {
@@ -242,9 +240,7 @@ export default class _Promise<T = unknown> {
     }
     return new _Promise((resolve, reject) => {
       array.forEach((p) => {
-        new _Promise<T extends PromiseLike<infer U> ? U : T>((resolve) => {
-          resolve(p)
-        }).then((value) => {
+        _Promise.resolve(p).then((value) => {
           resolve(value)
         }, (reason) => {
           reject(reason)
@@ -288,9 +284,7 @@ export default class _Promise<T = unknown> {
         }
       }
       array.forEach((p, i) => {
-        new _Promise<T extends PromiseLike<infer U> ? U : T>((resolve) => {
-          resolve(p)
-        }).then((value) => {
+        _Promise.resolve(p).then((value) => {
           result[i] = {
             status: PROMISE_STATUS.FULFILLED,
             value,
